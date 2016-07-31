@@ -54,8 +54,8 @@ def train(X, y, w0, w1, iterations, batch_size=500, learn_rate=3.0):
 
 
 @nb.jit(ar_type(ar_type, ar_type, ar_type), nopython=True)
-def feed_forward(X, w0, w1, b1, b2):
-    return sigmoid(np.dot(sigmoid(np.dot(X, w0.T)+b1), w1.T)+b2)  # need to make sure this works
+def feed_forward(X, w0, w1):
+    return sigmoid(np.dot(sigmoid(np.dot(X, w0.T)), w1.T))  # need to add biases
 
 
 def to_distr_repr(y):
@@ -100,12 +100,6 @@ if __name__ == '__main__':
     #
     # print("Stop debugger here")
 
-
-
-
-
-
-
     hidden_layer_size = 30
     np.random.seed(123456)
     train_size = 0.80
@@ -131,21 +125,21 @@ if __name__ == '__main__':
 
     myw0 = np.random.randn(hidden_layer_size, X.shape[1])
     myw1 = np.random.randn(10, hidden_layer_size)
-    myb1 = np.random.randn(1, hidden_layer_size)
-    myb2 = np.random.randn(1, 10)
+    # myb1 = np.random.randn(1, hidden_layer_size)
+    # myb2 = np.random.randn(1, 10)
 
-    w0, w1, b1, b2 = train(X, y, myw0, myw1, myb1, myb2, 150, 15)
-    save_model(w0, w1)
-    # w0, w1 = load_model()
+    # w0, w1 = train(X, y, myw0, myw1, 150, 15)
+    # save_model(w0, w1)
+    w0, w1 = load_model()
 
-    y_pred = feed_forward(X * 1.0, myw0, myw1, b1, b2)  # should be good since this is training data
+    y_pred = feed_forward(X * 1.0, w0, w1)  # should be good since this is training data
     y_pred_num = np.argmax(y_pred, axis=1)
     accuracy = np.count_nonzero(y_pred_num == y_numbers) / len(y)
     print("Accuracy on train set", accuracy)
 
-    y_test_pred = feed_forward(test_X * 1.0, w0, w1, b1, b2)
+    y_test_pred = feed_forward(test_X * 1.0, w0, w1)
     y_test_pred_num = np.argmax(y_test_pred, axis=1)
-    test_accuracy = np.count_nonzero(y_test_pred_num == test_y_numbers) / len(y)
+    test_accuracy = np.count_nonzero(y_test_pred_num == test_y_numbers) / len(test_y)
     print("Accuracy on test set", test_accuracy)
 
     import matplotlib.pyplot as plt
