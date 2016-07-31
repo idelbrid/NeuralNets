@@ -105,6 +105,7 @@ if __name__ == '__main__':
 
 
 
+
     hidden_layer_size = 30
     np.random.seed(123456)
     train_size = 0.80
