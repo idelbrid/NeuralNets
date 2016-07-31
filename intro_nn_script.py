@@ -18,39 +18,46 @@ def sigmoid(x):
 
 # @nb.jit(nb.typeof((ex_np_arr, ex_np_arr))(ar_type, ar_type, ar_type, ar_type, nb.typeof(6000)),
 #         nopython=True)
-# @nb.jit
-def train(X, y, w0, w1, b1, b2, iterations, batch_size=500, learn_rate=3.0):
 
-    bs = batch_size
-    # Xpartition = [X[bs*i:bs*(i+1)] for i in range(int(np.ceil(len(X)/bs)))]
-    # ypartition = [y[bs*i:bs*(i+1)] for i in range(int(np.ceil(len(y)/bs)))]
-    # best_w0, best_w1 = None, None
-    # best_score = np.inf
-    for it in range(iterations):
-        # cur_score = np.abs(y - sigmoid(np.dot(sigmoid(np.dot(X, w0.T)), w1.T))).sum()
-        # print('Epoch', it, 'Error ', cur_score)
-        # if cur_score < best_score:
-        #     best_score = cur_score
-        #     best_w0 = w0.copy()
-        #     best_w1 = w1.copy()
+@nb.jit(nopython=True)
+def sum_2d_ax0(x):
+    u = np.ones((1, x.shape[0]))
+    return np.dot(u, x)
 
-        shuffle_indices = np.random.permutation(np.arange(len(X)))
-        X = X[shuffle_indices, :]
-        y = y[shuffle_indices, :]
 
-        for i in range(int(np.ceil(len(y) / bs))):
-            a0 = X[(i*bs):((i+1)*bs)]
-            t = y[(i*bs):((i+1)*bs)]
-            a1 = sigmoid(np.dot(a0, w0.T) + b1)
-            a2 = sigmoid(np.dot(a1, w1.T) + b2)
+@nb.jit(nopython=True)
+def minibatch_update(a0, t, w0, w1, b1, b2, bs, learn_rate):
+    a1 = sigmoid(np.dot(a0, w0.T) + b1)
+    a2 = sigmoid(np.dot(a1, w1.T) + b2)
 
-            delta2 = (t - a2) * (a2 * (1 - a2))
-            delta1 = np.dot(delta2, w1) * (a1 * (1 - a1))
+    delta2 = (t - a2) * (a2 * (1 - a2))
+    delta1 = np.dot(delta2, w1) * (a1 * (1 - a1))
 
-            w1 += learn_rate * np.dot(delta2.T, a1) / bs
-            w0 += learn_rate * np.dot(delta1.T, a0) / bs
-            b2 += learn_rate * delta2.sum(axis=0) / bs
-            b1 += learn_rate * delta1.sum(axis=0) / bs
+    w1 += learn_rate * np.dot(delta2.T, a1) / bs
+    w0 += learn_rate * np.dot(delta1.T, a0) / bs
+    b2 += learn_rate * sum_2d_ax0(delta2) / bs
+    b1 += learn_rate * sum_2d_ax0(delta1) / bs
+    return (w0, w1, b1, b2)
+
+
+@nb.jit(nopython=True)
+def run_epoch(X, y, w0, w1, b1, b2, bs, learn_rate):
+    shuffle_indices = np.arange(len(X))
+    np.random.shuffle(shuffle_indices)
+    X = X[shuffle_indices, :]
+    y = y[shuffle_indices, :]
+
+    for i in range(int(np.ceil(len(y) / bs))):
+        w0, w1, b1, b2 = minibatch_update(X[(i*bs):((i+1)*bs)], y[(i*bs):((i+1)*bs)], w0, w1, b1, b2, bs, learn_rate)
+
+    return (w0, w1, b1, b2)
+
+
+@nb.jit(nopython=True)
+def train(X, y, w0, w1, b1, b2, epochs, batch_size=500, learn_rate=3.0):
+
+    for ep in range(epochs):
+        w0, w1, b1, b2 = run_epoch(X, y, w0, w1, b1, b2, batch_size, learn_rate)
 
     return (w0, w1, b1, b2)
 
@@ -84,7 +91,7 @@ def load_model(filename='./mlp_model.pkl'):
 
 if __name__ == '__main__':
 
-    # hidden_layer_size = 2
+    # HIDDEN_LAYER_SIZE = 2
     # X = np.array([
     #     [0, 1, 1, 0],
     #     [0, 0, 0, 0],
@@ -93,8 +100,8 @@ if __name__ == '__main__':
     #     [0, 1, 0, 1]
     # ])
     # y = np.array([[1, 0, 1, 0, 1]]).T
-    # myw0 = 2 * np.random.random((hidden_layer_size, X.shape[1])) - 1
-    # myw1 = 2 * np.random.random((1, hidden_layer_size))
+    # myw0 = 2 * np.random.random((HIDDEN_LAYER_SIZE, X.shape[1])) - 1
+    # myw1 = 2 * np.random.random((1, HIDDEN_LAYER_SIZE))
     #
     # w0s = []
     # w1s = []
@@ -102,7 +109,11 @@ if __name__ == '__main__':
     #
     # print("Stop debugger here")
 
-    hidden_layer_size = 30
+    HIDDEN_LAYER_SIZE = 100
+    EPOCHS = 150
+    MINIBATCH_SIZE = 20
+    LEARN_RATE = 4
+
     np.random.seed(123456)
     train_size = 0.80
 
@@ -122,17 +133,20 @@ if __name__ == '__main__':
     test_y_numbers = mnist['target'][test_indices]
     test_y = to_distr_repr(test_y_numbers)
 
-    # myw0 = 2 * np.random.random((hidden_layer_size, X.shape[1])) - 1
-    # myw1 = 2 * np.random.random((10, hidden_layer_size)) - 1
+    # myw0 = 2 * np.random.random((HIDDEN_LAYER_SIZE, X.shape[1])) - 1
+    # myw1 = 2 * np.random.random((10, HIDDEN_LAYER_SIZE)) - 1
 
-    myw0 = np.random.randn(hidden_layer_size, X.shape[1])
-    myw1 = np.random.randn(10, hidden_layer_size)
-    myb1 = np.random.randn(1, hidden_layer_size)
+    myw0 = np.random.randn(HIDDEN_LAYER_SIZE, X.shape[1])
+    myw1 = np.random.randn(10, HIDDEN_LAYER_SIZE)
+    myb1 = np.random.randn(1, HIDDEN_LAYER_SIZE)
     myb2 = np.random.randn(1, 10)
 
-    # w0, w1, b1, b2 = train(X, y, myw0, myw1, myb1, myb2, 150, 15)
-    # save_model(w0, w1, b1, b2)
-    w0, w1, b1, b2 = load_model()
+    w0, w1, b1, b2 = train(X, y, myw0, myw1, myb1, myb2, EPOCHS, MINIBATCH_SIZE, learn_rate=LEARN_RATE)
+    save_model(w0, w1, b1, b2)
+    # w0, w1, b1, b2 = load_model()
+    # save_model(w0, w1, b2, b2, filename='./hl60_e400_mb20_lr4.pkl')
+    print("Multi-layer perceptron with {} hidden layers of size {}, using {} epochs, {} mini-batch size, and {} "
+          "learn-rate".format(1, HIDDEN_LAYER_SIZE, EPOCHS, MINIBATCH_SIZE, LEARN_RATE))
 
     y_pred = feed_forward(X * 1.0, w0, w1, b1, b2)  # should be good since this is training data
     y_pred_num = np.argmax(y_pred, axis=1)
