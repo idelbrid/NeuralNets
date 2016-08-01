@@ -13,12 +13,6 @@ def sigmoid(x):
 
 
 @nb.jit(nopython=True)
-def grad_desc(w, a, y, iterations):
-    pass
-
-
-# u = np.ones((1, x.shape[0]))
-@nb.jit(nopython=True)
 def sum_2d_ax0(x):
     u = np.ones((1, x.shape[0]))
     return np.dot(u, x)
@@ -80,9 +74,6 @@ class MultiLayerPerceptron:
         return a
 
     def run_epoch(self, X, y):
-        if self.verbose:
-            score = np.abs(y - self.feed_forward(X)).mean()
-
         shuffle_indices = np.arange(len(X))
         np.random.shuffle(shuffle_indices)
         X = X[shuffle_indices, :]
@@ -95,6 +86,9 @@ class MultiLayerPerceptron:
         assert(y.shape[1] == self.w[self.num_layers-2].shape[0])
 
         for ep in range(self.epochs):
+            if self.verbose:
+                error = np.abs(y - self.feed_forward(X)).sum()
+                print("Epoch {}: error {}".format(ep, error))
             self.run_epoch(X, y)
 
     def predict(self, X):  # alias for feed-forward
@@ -146,7 +140,7 @@ def to_distr_repr(y):
 
 if __name__ == '__main__':
     SIZES = [784, 100, 30, 10]
-    EPOCHS = 70
+    EPOCHS = 100
     MINIBATCH_SIZE = 20
     LEARN_RATE = 5
 
@@ -171,7 +165,7 @@ if __name__ == '__main__':
 
     print("Multi-layer perceptron with {} hidden layers of size {}, using {} epochs, {} mini-batch size, and {} "
           "learn-rate".format(len(SIZES), SIZES, EPOCHS, MINIBATCH_SIZE, LEARN_RATE))
-    model = MultiLayerPerceptron(SIZES, EPOCHS, MINIBATCH_SIZE, LEARN_RATE, 123456)
+    model = MultiLayerPerceptron(SIZES, EPOCHS, MINIBATCH_SIZE, LEARN_RATE, 123456, verbose=True)
     model.fit(train_X, train_y)
     model.save('MLP class.pkl')
     # model = MultiLayerPerceptron.load('MLP class.pkl')
