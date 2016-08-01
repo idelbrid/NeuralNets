@@ -109,7 +109,7 @@ if __name__ == '__main__':
     #
     # print("Stop debugger here")
 
-    HIDDEN_LAYER_SIZE = 100
+    HIDDEN_LAYER_SIZE = 60
     EPOCHS = 150
     MINIBATCH_SIZE = 20
     LEARN_RATE = 4
