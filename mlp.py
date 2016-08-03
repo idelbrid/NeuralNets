@@ -19,7 +19,7 @@ def sum_2d_ax0(x):
 
 
 @nb.jit(nopython=False)
-def minibatch_update(X, y, w, b, learn_rate):
+def minibatch_update(X, y, w, b, learn_rate, top_layer_delta, regularizer, l):
     num_layers = len(w) + 1
     a = [None] * num_layers
     a[0] = X
@@ -27,27 +27,49 @@ def minibatch_update(X, y, w, b, learn_rate):
     for i in range(1, num_layers):
         a[i] = sigmoid(np.dot(a[i-1], w[i-1].T) + b[i-1])
 
-    delta[num_layers-2] = (y - a[num_layers-1]) * (a[num_layers-1] * (1 - a[num_layers -1]))
+    delta[num_layers-2] = top_layer_delta(y, a[num_layers-1])
     for i in range(num_layers - 2, 0, -1):
         delta[i-1] = np.dot(delta[i], w[i]) * (a[i] * (1 - a[i]))
 
     for i in range(num_layers - 1):
-        w[i] += learn_rate * np.dot(delta[i].T, a[i]) / len(X)
+        w[i] += learn_rate * np.dot(delta[i].T, a[i]) / len(X) - learn_rate * regularizer(w[i], len(X), l)
         b[i] += learn_rate * sum_2d_ax0(delta[i]) / len(X)
     return w, b
 
 
 @nb.jit(nopython=False)
-def run_minibatches(X, y, w, b, learn_rate, batch_size):
+def run_minibatches(X, y, w, b, learn_rate, batch_size, top_layer_delta, regularizer, l):
     for i in range(int(np.ceil(len(y) / batch_size))):
         w, b = minibatch_update(X[(i*batch_size):((i+1)*batch_size), :],
                                 y[(i*batch_size):((i+1)*batch_size)],
-                                w, b, learn_rate)
+                                w, b, learn_rate, top_layer_delta,
+                                regularizer, l)
     return w, b
 
 
+@nb.jit
+def toplayer_MSE(y, a):
+    return (y - a) * (a * (1 - a))
+
+
+@nb.jit
+def toplayer_cross_entropy(y, a):
+    return y - a
+
+
+@nb.jit
+def regularizer_none(w, n, l):
+    return 0
+
+
+@nb.jit
+def regularizer_weight_decay(w, n, l):
+    return l * w / n
+
+
 class MultiLayerPerceptron:
-    def __init__(self, layer_sizes, epochs, batch_size, learn_rate, init_seed=None, verbose=False):
+    def __init__(self, layer_sizes, epochs, batch_size, learn_rate, init_seed=None, verbose=False, cost='MSE',
+                 regularizer=None, l=1):
         assert(len(layer_sizes) > 1)
         np.random.seed(init_seed)
         w = [None] * (len(layer_sizes) - 1)
@@ -55,6 +77,20 @@ class MultiLayerPerceptron:
         for i in range(len(layer_sizes)-1):
             w[i] = np.random.randn(layer_sizes[i+1], layer_sizes[i])
             b[i] = np.random.randn(1, layer_sizes[i+1])
+
+        if cost == 'MSE':
+            self.toplayer_delta = toplayer_MSE
+        elif cost == 'cross entropy':
+            self.toplayer_delta = toplayer_cross_entropy
+        else:
+            raise ValueError("Not a valid cost function")
+
+        if regularizer is None:
+            self.regularizer = regularizer_none
+        elif regularizer == 'weight decay':
+            self.regularizer = regularizer_weight_decay
+        else:
+            raise ValueError("Not a valid regularizer")
 
         self.init_seed = init_seed
         self.num_layers = len(layer_sizes)
@@ -65,6 +101,7 @@ class MultiLayerPerceptron:
         self.epochs = epochs
         self.layer_sizes = layer_sizes
         self.verbose = verbose
+        self.l = l
         # self.y = None
 
     def feed_forward(self, X):
@@ -78,7 +115,8 @@ class MultiLayerPerceptron:
         np.random.shuffle(shuffle_indices)
         X = X[shuffle_indices, :]
         y = y[shuffle_indices, :]
-        self.w, self.b = run_minibatches(X, y, self.w.copy(), self.b.copy(), self.learn_rate, self.batch_size)
+        self.w, self.b = run_minibatches(X, y, self.w.copy(), self.b.copy(), self.learn_rate, self.batch_size,
+                                         self.toplayer_delta, self.regularizer, self.l)
 
     def fit(self, X, y):
         assert(X.shape[0] == y.shape[0])
@@ -139,12 +177,16 @@ def to_distr_repr(y):
 
 
 if __name__ == '__main__':
-    SIZES = [784, 100, 30, 10]
-    EPOCHS = 100
-    MINIBATCH_SIZE = 20
-    LEARN_RATE = 5
+    SIZES = [784, 800, 10]
+    EPOCHS = 1000
+    MINIBATCH_SIZE = 15
+    LEARN_RATE = 2
+    COST = 'cross entropy'
+    REGULARIZER = "weight decay"
+    L = 5.0
 
-    train_size = .80
+    train_size = 0.80
+    tune_size = 0.10
 
     mnist = fetch_mldata('MNIST original', data_home='C:/Users/Ian/Documents/data/')
     mnist['data'] = mnist['data'] / 255.0  # important to normalize the imput to [0,1]
@@ -152,25 +194,33 @@ if __name__ == '__main__':
 
     shuffle_indices = np.random.permutation(np.arange(total_records))
     train_indices = shuffle_indices[:train_size*total_records]
-    test_indices = shuffle_indices[train_size*total_records:]
+    tune_indices = shuffle_indices[train_size*total_records:(train_size+tune_size)*total_records]
+    test_indices = shuffle_indices[(train_size+tune_size)*total_records:]
 
     train_X = mnist['data'][train_indices, :]
+    tune_X = mnist['data'][tune_indices, :]
     test_X = mnist['data'][test_indices, :]
 
     train_y_as_num = mnist['target'][train_indices]
+    tune_y_as_num = mnist['target'][tune_indices]
     test_y_as_num = mnist['target'][test_indices]
 
     train_y = to_distr_repr(train_y_as_num)
+    tune_y = to_distr_repr(tune_y_as_num)
     test_y = to_distr_repr(test_y_as_num)
 
     print("Multi-layer perceptron with {} hidden layers of size {}, using {} epochs, {} mini-batch size, and {} "
           "learn-rate".format(len(SIZES), SIZES, EPOCHS, MINIBATCH_SIZE, LEARN_RATE))
-    model = MultiLayerPerceptron(SIZES, EPOCHS, MINIBATCH_SIZE, LEARN_RATE, 123456, verbose=True)
+    print("Using cost function {} and {} regularization (lamba {})".format(COST, REGULARIZER if REGULARIZER else "no",
+                                                                           L))
+
+    model = MultiLayerPerceptron(SIZES, EPOCHS, MINIBATCH_SIZE, LEARN_RATE, 123456, verbose=True, cost=COST)
     model.fit(train_X, train_y)
     model.save('MLP class.pkl')
     # model = MultiLayerPerceptron.load('MLP class.pkl')
 
     print('Accuracy on train set', model.score_1_of_m(train_X, train_y_as_num))
+    print('Accuracy on tune set', model.score_1_of_m(tune_X, tune_y_as_num))
     print('Accuracy on test set', model.score_1_of_m(test_X, test_y_as_num))
 
 
