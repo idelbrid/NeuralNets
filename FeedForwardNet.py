@@ -20,6 +20,7 @@ def sum_2d_ax0(x):
 
 @nb.jit(nopython=False)
 def minibatch_update(X, y, w, b, learn_rate, top_layer_delta, regularizer, l):
+    # k = np.float64_t
     num_layers = len(w) + 1
     a = [None] * num_layers
     a[0] = X
@@ -166,6 +167,7 @@ class MultiLayerPerceptron:
                                          learn_rate=learn_rate, init_seed=seed)
             model.w = w
             model.b = b
+        return model
 
 
 def to_distr_repr(y):
@@ -177,8 +179,8 @@ def to_distr_repr(y):
 
 
 if __name__ == '__main__':
-    SIZES = [784, 800, 10]
-    EPOCHS = 1000
+    SIZES = [784, 100, 10]
+    EPOCHS = 50
     MINIBATCH_SIZE = 15
     LEARN_RATE = 2
     COST = 'cross entropy'
@@ -191,6 +193,8 @@ if __name__ == '__main__':
     mnist = fetch_mldata('MNIST original', data_home='C:/Users/Ian/Documents/data/')
     mnist['data'] = mnist['data'] / 255.0  # important to normalize the imput to [0,1]
     total_records = mnist['data'].shape[0]
+
+    np.random.seed(123456)
 
     shuffle_indices = np.random.permutation(np.arange(total_records))
     train_indices = shuffle_indices[:train_size*total_records]
@@ -214,14 +218,24 @@ if __name__ == '__main__':
     print("Using cost function {} and {} regularization (lamba {})".format(COST, REGULARIZER if REGULARIZER else "no",
                                                                            L))
 
-    model = MultiLayerPerceptron(SIZES, EPOCHS, MINIBATCH_SIZE, LEARN_RATE, 123456, verbose=True, cost=COST)
-    model.fit(train_X, train_y)
-    model.save('MLP class.pkl')
-    # model = MultiLayerPerceptron.load('MLP class.pkl')
+    # model = MultiLayerPerceptron(SIZES, EPOCHS, MINIBATCH_SIZE, LEARN_RATE, 123456, verbose=True, cost=COST)
+    # model.fit(train_X, train_y)
+    # model.save('MLP class.pkl')
+    model = MultiLayerPerceptron.load('MLP class.pkl')
 
     print('Accuracy on train set', model.score_1_of_m(train_X, train_y_as_num))
     print('Accuracy on tune set', model.score_1_of_m(tune_X, tune_y_as_num))
     print('Accuracy on test set', model.score_1_of_m(test_X, test_y_as_num))
+
+    import matplotlib.pyplot as plt
+    sample_test_x = test_X[:20]
+    sample_test_y_num = test_y_as_num[:20]
+    sample_pred_test_y_num = np.argmax(model.predict(test_X[:20]), axis=1)
+
+    for x, y, pred in zip(sample_test_x, sample_test_y_num, sample_pred_test_y_num):
+        plt.pcolor(np.reshape(x, (28, 28))[::-1, ::1], cmap='Greys')
+        plt.title('Computer says it\'s a {}'.format(pred))
+        plt.show()
 
 
 
