@@ -1,8 +1,8 @@
 # NeuralNets
 
-This repository is contains a feed forward neural network written in python. The code is not designed for production usage - other languages are much better suited. Additionally, there is code for reading MNIST hand writing digits to demonstrate usage.
+This repository is contains a feed forward neural network written in python. The code is not designed for production usage - it is academic, developed while I was reading http://neuralnetworksanddeeplearning.com/chap1.html. Plus, the other languages are much better suited. Additionally, there is code for reading MNIST hand writing digits to demonstrate usage.
 
-Future work might be to include more kinds of regularization like dropout and to implement in a faster language, possibly utilizing Cython.
+Future work might be to include more kinds of regularization like dropout and to implement in a faster language, possibly utilizing Cython. Alternatively other languages may be utilized, e.g. Julia or C. 
 
 Available features of the Neural Nets are:
 * Arbitrary size neural network
