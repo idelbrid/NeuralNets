@@ -21,6 +21,7 @@ def sum_2d_ax0(x):
 
 @nb.jit(nopython=False)
 def minibatch_update(X, y, w, b, learn_rate, top_layer_delta, regularizer, l):
+    # k = np.float64_t
     num_layers = len(w) + 1
     a = [None] * num_layers
     a[0] = X
@@ -166,6 +167,7 @@ class MultiLayerPerceptron:
                                          learn_rate=learn_rate, init_seed=seed)
             model.w = w
             model.b = b
+        return model
 
 
 def to_distr_repr(y):
@@ -229,6 +231,16 @@ def score_1_of_m(model, X, y):  # there is only one correct selection for each d
 #     print('Accuracy on train set', score_1_of_m(model, train_X, train_y_as_num))
 #     print('Accuracy on tune set', score_1_of_m(model, tune_X, tune_y_as_num))
 #     print('Accuracy on test set', score_1_of_m(model, test_X, test_y_as_num))
+
+    # import matplotlib.pyplot as plt
+    # sample_test_x = test_X[:20]
+    # sample_test_y_num = test_y_as_num[:20]
+    # sample_pred_test_y_num = np.argmax(model.predict(test_X[:20]), axis=1)
+    #
+    # for x, y, pred in zip(sample_test_x, sample_test_y_num, sample_pred_test_y_num):
+    #     plt.pcolor(np.reshape(x, (28, 28))[::-1, ::1], cmap='Greys')
+    #     plt.title('Computer says it\'s a {}'.format(pred))
+    #     plt.show()
 
 
 
