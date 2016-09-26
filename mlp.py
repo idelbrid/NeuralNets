@@ -6,6 +6,7 @@ import numba as nb
 import pickle
 from sklearn.datasets import fetch_mldata
 
+# ToDO: add docstrings
 
 @nb.jit(nopython=True)
 def sigmoid(x):
@@ -110,8 +111,8 @@ class MultiLayerPerceptron:
             a = sigmoid(np.dot(a, self.w[i].T) + self.b[i])
         return a
 
-    def run_epoch(self, X, y):
-        shuffle_indices = np.arange(len(X))
+    def run_epoch(self, X, y, shuffle_indices):  # run a single epoch
+
         np.random.shuffle(shuffle_indices)
         X = X[shuffle_indices, :]
         y = y[shuffle_indices, :]
@@ -122,20 +123,19 @@ class MultiLayerPerceptron:
         assert(X.shape[0] == y.shape[0])
         assert(X.shape[1] == self.w[0].shape[1])
         assert(y.shape[1] == self.w[self.num_layers-2].shape[0])
-
+        np.random.seed(self.init_seed)
+        shuffle_indices = np.arange(len(X))
         for ep in range(self.epochs):
             if self.verbose:
                 error = np.abs(y - self.feed_forward(X)).sum()
                 print("Epoch {}: error {}".format(ep, error))
-            self.run_epoch(X, y)
+            self.run_epoch(X, y, shuffle_indices=shuffle_indices)
 
-    def predict(self, X):  # alias for feed-forward
-        return self.feed_forward(X)
+    def predict_best(self, X):
+        return self.feed_forward(X).argmax(axis=1)
 
-    def score_1_of_m(self, X, y):  # there is only one correct selection for each datum
-        predicted = self.predict(X)
-        predicted_class = np.argmax(predicted, axis=1)
-        return np.count_nonzero(predicted_class == y) / len(y)
+    def predict_activate(self, X):
+        return self.feed_forward(X).round()
 
     def save(self, filename):
         with open(filename, 'wb') as f:
@@ -176,52 +176,59 @@ def to_distr_repr(y):
     return toreturn
 
 
-if __name__ == '__main__':
-    SIZES = [784, 800, 10]
-    EPOCHS = 1000
-    MINIBATCH_SIZE = 15
-    LEARN_RATE = 2
-    COST = 'cross entropy'
-    REGULARIZER = "weight decay"
-    L = 5.0
+def score_1_of_m(model, X, y):  # there is only one correct selection for each datum
+    predicted = model.predict_best(X)
+    # predicted_class = np.argmax(predicted, axis=1)
+    return np.count_nonzero(predicted == y) / len(y)
 
-    train_size = 0.80
-    tune_size = 0.10
 
-    mnist = fetch_mldata('MNIST original', data_home='C:/Users/Ian/Documents/data/')
-    mnist['data'] = mnist['data'] / 255.0  # important to normalize the imput to [0,1]
-    total_records = mnist['data'].shape[0]
-
-    shuffle_indices = np.random.permutation(np.arange(total_records))
-    train_indices = shuffle_indices[:train_size*total_records]
-    tune_indices = shuffle_indices[train_size*total_records:(train_size+tune_size)*total_records]
-    test_indices = shuffle_indices[(train_size+tune_size)*total_records:]
-
-    train_X = mnist['data'][train_indices, :]
-    tune_X = mnist['data'][tune_indices, :]
-    test_X = mnist['data'][test_indices, :]
-
-    train_y_as_num = mnist['target'][train_indices]
-    tune_y_as_num = mnist['target'][tune_indices]
-    test_y_as_num = mnist['target'][test_indices]
-
-    train_y = to_distr_repr(train_y_as_num)
-    tune_y = to_distr_repr(tune_y_as_num)
-    test_y = to_distr_repr(test_y_as_num)
-
-    print("Multi-layer perceptron with {} hidden layers of size {}, using {} epochs, {} mini-batch size, and {} "
-          "learn-rate".format(len(SIZES), SIZES, EPOCHS, MINIBATCH_SIZE, LEARN_RATE))
-    print("Using cost function {} and {} regularization (lamba {})".format(COST, REGULARIZER if REGULARIZER else "no",
-                                                                           L))
-
-    model = MultiLayerPerceptron(SIZES, EPOCHS, MINIBATCH_SIZE, LEARN_RATE, 123456, verbose=True, cost=COST)
-    model.fit(train_X, train_y)
-    model.save('MLP class.pkl')
-    # model = MultiLayerPerceptron.load('MLP class.pkl')
-
-    print('Accuracy on train set', model.score_1_of_m(train_X, train_y_as_num))
-    print('Accuracy on tune set', model.score_1_of_m(tune_X, tune_y_as_num))
-    print('Accuracy on test set', model.score_1_of_m(test_X, test_y_as_num))
+#
+# if __name__ == '__main__':
+#     SIZES = [784, 800, 10]
+#     EPOCHS = 5
+#     MINIBATCH_SIZE = 15
+#     LEARN_RATE = 2
+#     COST = 'cross entropy'
+#     REGULARIZER = "weight decay"
+#     L = 5.0
+#
+#     train_size = 0.80
+#     tune_size = 0.10
+#
+#     mnist = fetch_mldata('MNIST original', data_home='C:/Users/Ian/Documents/data/')
+#     mnist['data'] = mnist['data'] / 255.0  # important to normalize the imput to [0,1]
+#     total_records = mnist['data'].shape[0]
+#     np.random.seed(123456)
+#     shuffle_indices = np.random.permutation(np.arange(total_records))
+#     train_indices = shuffle_indices[:train_size*total_records]
+#     tune_indices = shuffle_indices[train_size*total_records:(train_size+tune_size)*total_records]
+#     test_indices = shuffle_indices[(train_size+tune_size)*total_records:]
+#
+#     train_X = mnist['data'][train_indices, :]
+#     tune_X = mnist['data'][tune_indices, :]
+#     test_X = mnist['data'][test_indices, :]
+#
+#     train_y_as_num = mnist['target'][train_indices]
+#     tune_y_as_num = mnist['target'][tune_indices]
+#     test_y_as_num = mnist['target'][test_indices]
+#
+#     train_y = to_distr_repr(train_y_as_num)
+#     tune_y = to_distr_repr(tune_y_as_num)
+#     test_y = to_distr_repr(test_y_as_num)
+#
+#     print("Multi-layer perceptron with {} hidden layers of size {}, using {} epochs, {} mini-batch size, and {} "
+#           "learn-rate".format(len(SIZES)-2, SIZES[1:-1], EPOCHS, MINIBATCH_SIZE, LEARN_RATE))
+#     print("Using cost function {} and {} regularization (lamba {})".format(COST, REGULARIZER if REGULARIZER else "no",
+#                                                                            L))
+#
+#     model = MultiLayerPerceptron(SIZES, EPOCHS, MINIBATCH_SIZE, LEARN_RATE, 123456, verbose=True, cost=COST)
+#     model.fit(train_X, train_y)
+#     model.save('MLP class.pkl')
+#     # model = MultiLayerPerceptron.load('MLP class.pkl')
+#
+#     print('Accuracy on train set', score_1_of_m(model, train_X, train_y_as_num))
+#     print('Accuracy on tune set', score_1_of_m(model, tune_X, tune_y_as_num))
+#     print('Accuracy on test set', score_1_of_m(model, test_X, test_y_as_num))
 
 
 
