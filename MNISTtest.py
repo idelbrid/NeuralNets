@@ -1,7 +1,7 @@
 from mlp_theano import TMultiLayerPerceptron
 import numpy as np
 from sklearn.datasets import fetch_mldata
-from mlp import MultiLayerPerceptron
+from FeedForwardNet import MultiLayerPerceptron
 import time
 import pickle
 from theano import function
@@ -9,6 +9,7 @@ from theano import function
 if __name__ == '__main__':
 
     def to_distr_repr(y):
+        y = y.astype(np.int64)
         yrange = y.max() - y.min()
         toreturn = np.zeros((len(y), int(yrange + 1)))
         for i in range(len(y)):
@@ -20,12 +21,13 @@ if __name__ == '__main__':
         # predicted_class = np.argmax(predicted, axis=1)
         return np.count_nonzero(predicted == y) / len(y)
 
-    SIZES = [784, 100,  10]
-    EPOCHS = 20
-    MINIBATCH_SIZE = 60
+    SIZES = [784, 800, 300, 100, 10]
+    EPOCHS = 100
+    REPORT_EVERY = 5
+    MINIBATCH_SIZE = 30
     LEARN_RATE = 2
     COST = 'cross entropy'
-    REGULARIZER = "weight decay"
+    REGULARIZER = 'weight decay'
     L = 5.0
 
     train_size = 0.80
@@ -38,9 +40,9 @@ if __name__ == '__main__':
     # MINIBATCH_SIZE = int(total_records * train_size)
     np.random.seed(123456)
     shuffle_indices = np.random.permutation(np.arange(total_records))
-    train_indices = shuffle_indices[:train_size * total_records]
-    tune_indices = shuffle_indices[train_size * total_records:(train_size + tune_size) * total_records]
-    test_indices = shuffle_indices[(train_size + tune_size) * total_records:]
+    train_indices = shuffle_indices[:int(np.round(train_size * total_records))]
+    tune_indices = shuffle_indices[int(np.round(train_size * total_records)):int(np.round((train_size + tune_size) * total_records))]
+    test_indices = shuffle_indices[int(np.round((train_size + tune_size) * total_records)):]
 
     train_X = mnist['data'][train_indices, :]
     tune_X = mnist['data'][tune_indices, :]
@@ -60,18 +62,20 @@ if __name__ == '__main__':
                                                                            L))
     print("Training Theano model")
     t0 = time.clock()
-    model = TMultiLayerPerceptron(SIZES, EPOCHS, MINIBATCH_SIZE, LEARN_RATE, 42, verbose=1, cost=COST)
+    model = TMultiLayerPerceptron(SIZES, EPOCHS, MINIBATCH_SIZE, LEARN_RATE, 123456, verbose=1, cost=COST,
+                                  report_every=REPORT_EVERY)
     model.fit(train_X, train_y)
     t1 = time.clock()
     print("Elapsed time: {:,} seconds".format(t1 - t0))
-    # with open('Theano Model.pkl', 'wb') as f:
-    #     pickle.dump(model, f)
+    with open('Theano Model.pkl', 'wb') as f:
+        pickle.dump(model, f)
     #
 
 
     print("Training JITed model")
     t2 = time.clock()
-    jmodel = MultiLayerPerceptron(SIZES, EPOCHS, MINIBATCH_SIZE, LEARN_RATE, 42, verbose=1, cost=COST)
+    jmodel = MultiLayerPerceptron(SIZES, EPOCHS, MINIBATCH_SIZE, LEARN_RATE, 123456, verbose=1, cost=COST,
+                                  report_every=REPORT_EVERY)
     jmodel.fit(train_X, train_y)
     t3 = time.clock()
     print("Elapsed time: {:,} seconds".format(t3 - t2))

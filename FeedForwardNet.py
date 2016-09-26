@@ -50,28 +50,58 @@ def run_minibatches(X, y, w, b, learn_rate, batch_size, top_layer_delta, regular
 
 
 @nb.jit
-def toplayer_MSE(y, a):
+def MSE_update(y, a):
     return (y - a) * (a * (1 - a))
 
 
 @nb.jit
-def toplayer_cross_entropy(y, a):
+def cross_entropy_update(y, a):
     return y - a
 
 
 @nb.jit
-def regularizer_none(w, n, l):
+def cross_entropy(y, a):
+    return -y * np.log(a) - (1 - y) * np.log(1 - a)
+
+
+@nb.jit
+def MSE(y, a):
+    return (y - a) ** 2 / 2
+
+
+@nb.jit
+def L2Regularizer(w, n, l):
+    return (w ** 2).sum() * l / (2 * n)
+
+
+@nb.jit
+def L1Regularizer(w, n, l):
+    return (np.abs(w)).sum() * l / n
+
+
+@nb.jit
+def NoRegularizer(w, n, l):
     return 0
 
 
 @nb.jit
-def regularizer_weight_decay(w, n, l):
+def rglzr_none_update(w, n, l):
+    return 0
+
+
+@nb.jit
+def rglzr_wd_update(w, n, l):
     return l * w / n
+
+
+@nb.jit
+def rglzr_l1_update(w, n, l):
+    return l / n
 
 
 class MultiLayerPerceptron:
     def __init__(self, layer_sizes, epochs, batch_size, learn_rate, init_seed=None, verbose=False, cost='MSE',
-                 regularizer=None, l=1):
+                 regularizer=None, l=1, report_every=1):
         assert(len(layer_sizes) > 1)
         np.random.seed(init_seed)
         w = [None] * (len(layer_sizes) - 1)
@@ -81,16 +111,23 @@ class MultiLayerPerceptron:
             b[i] = np.random.randn(1, layer_sizes[i+1])
 
         if cost == 'MSE':
-            self.toplayer_delta = toplayer_MSE
+            self.cost_fn_update = MSE_update
+            self.cost = MSE
         elif cost == 'cross entropy':
-            self.toplayer_delta = toplayer_cross_entropy
+            self.cost_fn_update = cross_entropy_update
+            self.cost = cross_entropy
         else:
             raise ValueError("Not a valid cost function")
 
         if regularizer is None:
-            self.regularizer = regularizer_none
+            self.regularizer_update = rglzr_none_update
+            self.regularizer = NoRegularizer
         elif regularizer == 'weight decay':
-            self.regularizer = regularizer_weight_decay
+            self.regularizer_update = rglzr_wd_update
+            self.regularizer = L2Regularizer
+        elif cost == 'L1':
+            self.regularizer_update = rglzr_l1_update
+            self.regularizer = L1Regularizer
         else:
             raise ValueError("Not a valid regularizer")
 
@@ -104,6 +141,7 @@ class MultiLayerPerceptron:
         self.layer_sizes = layer_sizes
         self.verbose = verbose
         self.l = l
+        self.report_every = report_every
         # self.y = None
 
     def feed_forward(self, X):
@@ -118,7 +156,7 @@ class MultiLayerPerceptron:
         X = X[shuffle_indices, :]
         y = y[shuffle_indices, :]
         self.w, self.b = run_minibatches(X, y, self.w.copy(), self.b.copy(), self.learn_rate, self.batch_size,
-                                         self.toplayer_delta, self.regularizer, self.l)
+                                         self.cost_fn_update, self.regularizer_update, self.l)
 
     def fit(self, X, y):
         assert(X.shape[0] == y.shape[0])
@@ -128,8 +166,9 @@ class MultiLayerPerceptron:
         shuffle_indices = np.arange(len(X))
         for ep in range(self.epochs):
             if self.verbose:
-                error = np.abs(y - self.feed_forward(X)).sum()
-                print("Epoch {}: error {}".format(ep, error))
+                if ep % self.report_every == 0:
+                    cost = self.get_cost(X, y)
+                    print("Epoch {}: cost = {:2.6f}".format(ep, cost))
             self.run_epoch(X, y, shuffle_indices=shuffle_indices)
 
     def predict_best(self, X):
@@ -150,6 +189,13 @@ class MultiLayerPerceptron:
                           'learn_rate': self.learn_rate,
                           'num_epochs': self.epochs}
             pickler.dump(components)
+
+    def get_cost(self, X, y):
+        a = self.feed_forward(X)
+        total_reg_cost = 0
+        for _w in self.w:
+            total_reg_cost += self.regularizer(_w, len(X), self.l)
+        return self.cost(y, a).mean() + total_reg_cost
 
     @staticmethod
     def load(filename):

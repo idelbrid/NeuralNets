@@ -4,7 +4,7 @@ import numpy as np
 
 class TMultiLayerPerceptron(object):
     def __init__(self, layer_sizes, epochs, batch_size, learn_rate, init_seed=None, verbose=False, cost='MSE',
-                 regularizer=None, l=1):
+                 regularizer=None, l=1, report_every=1):
         """
         A multi-layer perceptron implemented using Theano
         :param layer_sizes: sizes of the layers, including input and output
@@ -29,6 +29,7 @@ class TMultiLayerPerceptron(object):
         self.regularizer = regularizer
         self.l = l
         self.cost_value = None
+        self.report_every = report_every
 
         n_layers = len(layer_sizes)
         trainxvar, trainyvar = T.dmatrices('xt', 'yt')
@@ -62,7 +63,7 @@ class TMultiLayerPerceptron(object):
 
         # creating cost function
         if cost == 'MSE':
-            err = (y - a[-1]) ** 2
+            err = (y - a[-1]) ** 2 / 2
         elif cost == 'cross entropy':
             err = -y * T.log(a[-1]) - (1 - y)*T.log(1 - a[-1])
         else:
@@ -70,9 +71,9 @@ class TMultiLayerPerceptron(object):
 
         # adding regularization function to it
         if regularizer is None:
-            cost_f = err.mean() / 2
+            cost_f = err.mean()
         elif regularizer == 'weight decay':
-            cost_f = err.mean() / 2 + l / (2 * x.size[0]) * T.sum([(_w ** 2).sum() for _w in weights])
+            cost_f = err.mean() + l / (2 * x.size[0]) * T.sum([(_w ** 2).sum() for _w in weights])
         else:
             raise ValueError("Unknown regularization method, {}".format(regularizer))
 
@@ -100,9 +101,10 @@ class TMultiLayerPerceptron(object):
             X = X[shuffle_indices, :]
             y = y[shuffle_indices, :]
             if self.verbose:
-                cost = self._get_cost(X, y)
-                # print("Epoch {}: cost = {:10.2f}".format(epoch, cost))
-                print("Epoch {}: cost = {}".format(epoch, cost))
+                if epoch % self.report_every == 0:
+                    cost = self._get_cost(X, y)
+                    print("Epoch {}: cost = {:2.6f}".format(epoch, float(cost)))
+
             for i, idx in enumerate(range(0, len(X), self.batch_size)):
                 cost = self._train(i, X, y)
 
