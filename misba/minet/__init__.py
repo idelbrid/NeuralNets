@@ -1,1 +1,1 @@
-from .minet import miNet
+from .minet import miNet, MINet

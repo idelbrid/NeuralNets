@@ -3,6 +3,7 @@
 import keras.backend as K
 from keras.engine.topology import Layer
 
+
 class ZeroMaskedEntries(Layer):
     """
     This layer is called after an Embedding layer.
@@ -47,6 +48,7 @@ def mask_aware_mean(x):
 
     return x_mean
 
+
 def mask_aware_mean_output_shape(input_shape):
     shape = list(input_shape)
     assert len(shape) == 3
@@ -61,6 +63,10 @@ def mask_aware_max(x):
     xstar = x + (vecmin * (1 - mask))  # setting masked values to the min value
 
     return K.max(xstar, axis=1, keepdims=False)
+
+
+def logsumexp(x):
+    return K.logsumexp(x, axis=1, keepdims=False)
 
 
 if __name__ == '__main__':

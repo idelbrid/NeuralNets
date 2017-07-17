@@ -23,7 +23,7 @@ def create_mil_dataset(bag_sizes, prob_inst_positive=None, negative_label=0, inc
     :param make_classification_kwargs: any other key word arguments passed to make_classification
     :return: list of bags and a list of labels
     """
-    np.random.seed(random_state)
+    np.random.set_state(random_state)
     if prob_inst_positive is None:
         prob_inst_positive = 1 - np.exp(np.log(0.5)/np.mean(bag_sizes))
 
